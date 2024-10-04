@@ -105,7 +105,7 @@ const addToSplitwise = async (bill: KrakenBill) => {
   }
 
   const result = await createExpense(apiKey, {
-    cost: bill.total / 100,
+    cost: (bill.total / 100).toString(),
     description: bill.billType,
     details: `Octopus Energy Bill from ${bill.fromDate} to ${bill.toDate}`,
     date: bill.issuedDate,

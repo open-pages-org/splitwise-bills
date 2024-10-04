@@ -1,5 +1,5 @@
 export interface Expense {
-  cost: number;
+  cost: string;
   description: string;
   details: string;
   date: string;
@@ -11,6 +11,8 @@ export interface Expense {
 }
 
 export const createExpense = async (apiKey: string, expense: Expense) => {
+  console.log("Creating expense", expense);
+
   const response = await fetch("https://secure.splitwise.com/api/v3.0/create_expense", {
     method: "POST",
     headers: {
@@ -20,5 +22,11 @@ export const createExpense = async (apiKey: string, expense: Expense) => {
     body: JSON.stringify(expense),
   });
 
-  return response.json();
+  const result = await response.json();
+
+  if (Object.keys(result.errors).length > 0) {
+    throw new Error(`Failed to create expense: ${result.errors}`);
+  }
+
+  return result;
 }
