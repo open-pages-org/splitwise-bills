@@ -2,6 +2,7 @@ import { Duration, RemovalPolicy, Stack, aws_events, aws_events_targets, aws_lam
 import { AttributeType, TableV2 } from 'aws-cdk-lib/aws-dynamodb';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
 export class SplitwiseBillsStack extends Stack {
@@ -12,6 +13,11 @@ export class SplitwiseBillsStack extends Stack {
       tableName: 'splitwise-bills-octopus',
       partitionKey: { name: 'id', type: AttributeType.STRING },
       removalPolicy: RemovalPolicy.RETAIN,
+    });
+
+    const billsBucket = new Bucket(this, 'splitwise-bills-bucket', {
+      bucketName: 'splitwise-bills',
+      removalPolicy: RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE,
     });
 
     const lambda = new NodejsFunction(this, 'check-octopus-bills-lambda', {
@@ -27,10 +33,12 @@ export class SplitwiseBillsStack extends Stack {
       },
       environment: {
         BILLS_TABLE: billsTable.tableName,
+        BILLS_BUCKET: billsBucket.bucketName,
       },
       memorySize: 256,
     });
     billsTable.grantReadWriteData(lambda);
+    billsBucket.grantReadWrite(lambda);
     lambda.addToRolePolicy(new PolicyStatement({
       actions: ['ssm:GetParameter'],
       resources: [

@@ -103,3 +103,11 @@ export const getBills = async (token: string, accountNumber: string, total: numb
         total: node.totalCharges.grossTotal,
     }));
 }
+
+export const downloadBill = async (url: string): Promise<Buffer> => {
+    const response = await fetch(url);
+    const buffer = await response.arrayBuffer();
+    const pdfBuffer = Buffer.from(buffer);
+
+    return pdfBuffer;
+}

@@ -1,11 +1,17 @@
 import { DynamoDBClient, QueryCommand, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { SSM } from '@aws-sdk/client-ssm';
-import { getKrakenToken, getBills, KrakenBill } from "./octopus";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getKrakenToken, getBills, KrakenBill, downloadBill } from "./octopus";
 import { createExpense } from "./splitwise";
 
 const billsTable = process.env.BILLS_TABLE;
 if (!billsTable) {
   throw new Error("No bills table defined");
+}
+
+const billsBucket = process.env.BILLS_BUCKET;
+if (!billsBucket) {
+  throw new Error("No bills bucket defined");
 }
 
 const ssm = new SSM({
@@ -14,7 +20,9 @@ const ssm = new SSM({
 const dynamoDBClient = new DynamoDBClient({
   region: "eu-west-2",
 });
-
+const s3Client = new S3Client({
+  region: "eu-west-2",
+});
 
 const getKrakenBills = async () => {
   const krakenAPIKey = (await ssm.getParameter({
@@ -59,6 +67,22 @@ const addToDynamoDB = async (bill: KrakenBill) => {
 
   await dynamoDBClient.send(command);
   console.log(`Added bill to dynamo: ${bill.id}`);
+}
+
+const saveToS3 = async (bill: KrakenBill) => {
+  console.log(`Saving bill to S3: ${bill.id}`);
+  const billPDFBuffer = await downloadBill(bill.temporaryUrl);
+
+  const command = new PutObjectCommand({
+    Bucket: billsBucket,
+    Key: `octopus/${bill.id}.pdf`,
+    Body: billPDFBuffer,
+    ContentType: "application/pdf",
+  });
+
+  await s3Client.send(command);
+
+  console.log(`Saved bill to S3: ${bill.id}`);
 }
 
 const addToSplitwise = async (bill: KrakenBill) => {
@@ -127,6 +151,7 @@ export const handler = async () => {
 
     await addToSplitwise(bill);
     await addToDynamoDB(bill);
+    await saveToS3(bill);
   });
 
   const results = await Promise.allSettled(registerBillsPromises);
@@ -136,4 +161,11 @@ export const handler = async () => {
       console.error(`Failed to register bill ${newBills[index].id}`, result.reason);
     }
   });
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      message: `Processed ${newBills.length} new bills`,
+    }),
+  };
 };
